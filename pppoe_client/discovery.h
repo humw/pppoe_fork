@@ -50,6 +50,8 @@ struct Connection_info {
 	char *my_NIC;
 	unsigned short int host_uniq;
 	int my_ifindex;
+	unsigned short int pppoe_session_id;
+	int session_sock;
 };
 
 struct PPPOE_TAG {

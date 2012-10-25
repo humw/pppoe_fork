@@ -176,6 +176,7 @@ int recv_PADS (int sock,struct Connection_info *my_connection) {
 			if (parse_PADS(&buff,my_connection)) {
 				printf("got PADS!\n");
 				printf("the session id is %i\n",ntohs(buff.pppoe_session_id));
+				memcpy(&my_connection->pppoe_session_id,&buff.pppoe_session_id,sizeof(buff.pppoe_session_id);
 				return 0;
 			}
 			else {

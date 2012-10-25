@@ -62,6 +62,8 @@ int main (int argc, char **argv) {
 		sendPADR(sock,&my_connection);
 		recv_PADS(sock,&my_connection);
 	}
+	my_connection.session_sock=socket(AF_PACKET,SOCK_RAW,htons(ETHER_TYPE_PPP_SESSION));
+	session(&my_connection);
 	return 0;
 }
 
