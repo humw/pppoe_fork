@@ -24,7 +24,7 @@ int sendPADI (int sock,struct Connection_info *my_connection) {
 	my_connection->host_uniq=(unsigned short int)(rand()/(float)RAND_MAX*65535);
 	unsigned short int host_uniq_n=htons(my_connection->host_uniq);
 	memcpy(&tag2.TAG_VALUE,&host_uniq_n,sizeof(host_uniq_n));
-	printf("the host uniq we sent is %#X------------\n",my_connection->host_uniq);
+	//printf("the host uniq we sent is %#X------------\n",my_connection->host_uniq);
 	//TAGs are ready!!
 	struct PADX_header buff;
 	memset(&buff,0,sizeof(buff));
@@ -40,11 +40,11 @@ int sendPADI (int sock,struct Connection_info *my_connection) {
 	memcpy(buff.payload+sizeof(tag1.TAG_TYPE)+sizeof(tag1.TAG_LENGTH),&tag2,sizeof(tag2.TAG_TYPE)+sizeof(tag2.TAG_LENGTH)+ntohs(tag2.TAG_LENGTH));
 	//buff's ready!
 	if (sendto(sock,&buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff.pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr))) {
-		return 1;
+		return 0;
 	}
 	else {
-		printf("%s\n",strerror(errno));
-		return 0;
+		//printf("%s\n",strerror(errno));
+		exit;
 	}
 }
 
@@ -61,24 +61,25 @@ int get_ifindex(int sock,char *device_name) {
 }
 
 int recv_PADO (int sock,struct Connection_info *my_connection) {
+	//printf("receiving...\n");
 	struct PADX_header buff;
 	memset(&buff,0,sizeof(buff));
 	ssize_t count;
 	while (count=recv(sock,&buff,sizeof(buff),0)) {
-		printf("count is %i\n",count);
+	//	printf("count is %i\n",count);
 		if (count >0) {
 			if (parse_PADO(&buff,my_connection)) {
-				printf("got PADO!\n");
+			//	printf("got PADO!\n");
 				memcpy(my_connection->peer_mac,buff.eth_src_mac,MAC_LEN);
 				return 0;
 			}
 			else {
-				printf("got a packet which is not expected\n");
+			//	printf("got a packet which is not expected\n");
 				continue;
 			}
 		}
 		else {
-			printf("recv_PADO failed!\t%s\n",strerror(errno));
+		//	printf("recv_PADO failed!\t%s\n",strerror(errno));
 			exit(2);
 		}
 	}
@@ -86,7 +87,7 @@ int recv_PADO (int sock,struct Connection_info *my_connection) {
 	
 	
 int parse_PADO (struct PADX_header *PADO,struct Connection_info *my_connection) {
-	printf("start to parse PADO\n");
+	//printf("start to parse PADO\n");
 	if (memcmp(PADO->eth_dst_mac,my_connection->my_mac,MAC_LEN) ==0) {
 	int i;
 		for(i=0;i<ntohs(PADO->pppoe_length);) {
@@ -158,11 +159,11 @@ int sendPADR (int sock,struct Connection_info *my_connection) {
 	memcpy(buff.payload,&tag1,sizeof(tag1.TAG_TYPE)+sizeof(tag1.TAG_LENGTH));
 	memcpy(buff.payload+sizeof(tag1.TAG_TYPE)+sizeof(tag1.TAG_LENGTH),&tag2,sizeof(tag2.TAG_TYPE)+sizeof(tag2.TAG_LENGTH)+ntohs(tag2.TAG_LENGTH));
 	if (sendto(sock,&buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff.pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr))) {
-		return 1;
+		return 0;
 	}
 	else {
-		printf("%s\n",strerror(errno));
-		return 0;
+		//printf("%s\n",strerror(errno));
+		exit;
 	}
 }
 
@@ -171,21 +172,21 @@ int recv_PADS (int sock,struct Connection_info *my_connection) {
 	memset(&buff,0,sizeof(buff));
 	ssize_t count;
 	while (count=recv(sock,&buff,sizeof(buff),0)) {
-		printf("count is %i\n",count);
+		//printf("count is %i\n",count);
 		if (count >0) {
 			if (parse_PADS(&buff,my_connection)) {
-				printf("got PADS!\n");
-				printf("the session id is %i\n",ntohs(buff.pppoe_session_id));
-				memcpy(&my_connection->pppoe_session_id,&buff.pppoe_session_id,sizeof(buff.pppoe_session_id);
+				//printf("got PADS!\n");
+			//	printf("the session id is %i\n",ntohs(buff.pppoe_session_id));
+				memcpy(&my_connection->pppoe_session_id,&buff.pppoe_session_id,sizeof(buff.pppoe_session_id));
 				return 0;
 			}
 			else {
-				printf("got a packet which is not expected\n");
+		//		printf("got a packet which is not expected\n");
 				continue;
 			}
 		}
 		else {
-			printf("recv_PADS failed!\t%s\n",strerror(errno));
+			//printf("recv_PADS failed!\t%s\n",strerror(errno));
 			exit(2);
 		}
 	}
@@ -193,7 +194,7 @@ int recv_PADS (int sock,struct Connection_info *my_connection) {
 
 
 int parse_PADS (struct PADX_header *PADS,struct Connection_info *my_connection) {
-	printf("start to parse PADS\n");
+	//printf("start to parse PADS\n");
 	if(PADS->pppoe_code==CODE_OF_PADS) {
 		return 1;
 	}

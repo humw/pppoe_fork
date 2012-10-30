@@ -18,6 +18,7 @@
 
 
 #define MAC_LEN 6 //the length of a mac address
+#define MTU 1500
 #define ETHER_TYPE_DISCOVERY 0x8863
 #define ETHER_TYPE_PPP_SESSION 0x8864
 #define MAX_ETH_PACKET_LEN 1514
@@ -59,3 +60,37 @@ struct PPPOE_TAG {
 	unsigned short int TAG_LENGTH;//2 bytes
 	unsigned char TAG_VALUE[MAX_ETH_PACKET_LEN];
 };
+
+struct ppp_frame_for_PPPoE {
+	char DESTINATION_ADDR[MAC_LEN];
+	char SOURCE_ADDR[MAC_LEN];
+	unsigned short int ETHER_TYPE;
+	char pppoe_type:4;
+	char pppoe_ver:4;
+	char pppoe_code;
+	unsigned short int pppoe_session_id;
+	unsigned short int pppoe_length;
+	unsigned short int Protocol_Field; //identifies the datagram encapsulated in the Information field
+	char Information[MTU-6-2];
+};
+
+struct LCP_packet {
+	unsigned char Code;
+	unsigned char Identifier;
+	unsigned short int Length; //indicates the length of the LCP packet, including the Code, Identifier, Length and Data fields
+	char Data[MTU-6-2-1-1-2];
+};
+
+struct magic_number {
+	unsigned char Type;
+	unsigned char Length;
+	unsigned int Data;
+};
+
+struct MRU {
+	unsigned char Type;
+	unsigned char Length;
+	unsigned short int Data;
+};
+
+
