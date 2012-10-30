@@ -32,7 +32,7 @@ int main (int argc, char **argv) {
 	int sock;
 	sock=socket(AF_PACKET,SOCK_RAW,htons(ETHER_TYPE_DISCOVERY));
 	if(sock<0) {
-		printf("%s\n",strerror(errno));
+	//	printf("%s\n",strerror(errno));
 		exit(1);
 	}
 	//create a socket!
@@ -51,18 +51,11 @@ int main (int argc, char **argv) {
 	my_connection.my_NIC=argv[1];
 
 	set_promisc(sock,my_connection.my_NIC);
-	if (sendPADI(sock,&my_connection)) {
-		printf("PADI sent!\n");
-	}
-	else {
-		fputs("PADI send failed!\n",stderr);
-		exit(1);
-	}
-	if (recv_PADO(sock,&my_connection)==0) {
-		sendPADR(sock,&my_connection);
-		recv_PADS(sock,&my_connection);
-	}
-	my_connection.session_sock=socket(AF_PACKET,SOCK_RAW,htons(ETHER_TYPE_PPP_SESSION));
+	sendPADI(sock,&my_connection);
+	recv_PADO(sock,&my_connection);
+	sendPADR(sock,&my_connection);
+	recv_PADS(sock,&my_connection);
+	
 	session(&my_connection);
 	return 0;
 }
