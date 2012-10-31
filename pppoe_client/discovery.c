@@ -1,5 +1,5 @@
 #include "discovery.h"
-
+;
 
 int sendPADI (int sock,struct Connection_info *my_connection) {
 	my_connection->my_ifindex=get_ifindex(sock,my_connection->my_NIC);

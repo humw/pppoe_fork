@@ -22,6 +22,7 @@
 
 
 #include "discovery.h"
+;
 
 
 int main (int argc, char **argv) {
@@ -55,7 +56,6 @@ int main (int argc, char **argv) {
 	recv_PADO(sock,&my_connection);
 	sendPADR(sock,&my_connection);
 	recv_PADS(sock,&my_connection);
-	
 	session(&my_connection);
 	return 0;
 }

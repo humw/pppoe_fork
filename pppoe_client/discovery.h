@@ -12,6 +12,9 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <unistd.h>
+#include "md5.h"
+
+
 
 
 
@@ -31,7 +34,8 @@
 #define CODE_OF_PADR 0x19
 #define CODE_OF_PADS 0x65
 #define CODE_OF_PPP_SESSION 0x00
-
+#define LCP 0xc021
+#define CHAP 0xc223
 
 struct PADX_header {
 	char eth_dst_mac[MAC_LEN];
@@ -93,4 +97,9 @@ struct MRU {
 	unsigned short int Data;
 };
 
+struct CHAP_value {
+	unsigned char Value_size;
+	unsigned char Value[16];
+	unsigned char Name[4];
+}
 

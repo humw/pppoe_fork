@@ -21,6 +21,7 @@
 
 
 #include "discovery.h"
+;
 
 unsigned char send_CFG_REQ (struct Connection_info *my_connection) {
 	my_connection->session_sock=socket(AF_PACKET,SOCK_RAW,htons(ETHER_TYPE_PPP_SESSION));
@@ -106,7 +107,7 @@ int LCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPoE
 		cfg_req_ack.pppoe_code=0x00;
 		cfg_req_ack.pppoe_session_id=my_connection->pppoe_session_id;
 		cfg_req_ack.pppoe_length=htons(ntohs(lcp_packet->Length)+2);
-		cfg_req_ack.Protocol_Field=htons(0xc021);
+		cfg_req_ack.Protocol_Field=htons(LCP);
 		memcpy(cfg_req_ack.Information,lcp_packet,ntohs(lcp_packet->Length));
 		//cfg_ack's ready!
 		int sent_count=sendto(my_connection->session_sock,&cfg_req_ack,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(cfg_req_ack.pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr));
@@ -118,6 +119,68 @@ int LCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPoE
 	}
 	return 99;
 }	
+
+int CHAP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPoE *buff) {
+	struct LCP_packet *chap_packet=(struct LCP_packet *)buff->Information;
+	if(chap_packet->Code==3) {
+		printf("CHAP succeed!\n");
+		return 1;
+	}
+	if(chap_packet->Code==4) {
+		printf("CHAP failed!\n");
+		exit(1);
+	}
+	if(chap_packet->Code==1) {
+		unsigned char string_to_be_digest[100];
+		memset(&string_to_be_digest,0,100);
+		memcpy(string_to_be_digest,&chap_packet->Identifier,sizeof(chap_packet->Identifier));
+		memcpy(string_to_be_digest+sizeof(chap_packet->Identifier),"aaaa",4);//CHAP secret!!!
+		struct CHAP_value *chap_value=(struct CHAP_value *)chap_packet->Data;
+		memcpy(string_to_be_digest+sizeof(chap_packet->Identifier)+4,chap_value->Value,chap_value->Value_size);
+		
+		unsigned char md5[16];
+		memset(md5,0,16);
+		struct MD5Context ctx;
+		MD5Init(&ctx);
+		MD5Update(&ctx,string_to_be_digest,sizeof(chap_packet->Identifier)+4+chap_value->Value_size);
+		MD5Final(md5,&ctx);
+		
+		unsigned char temp[MAC_LEN];
+		memcpy(temp,buff->DESTINATION_ADDR,MAC_LEN);
+		memcpy(buff->DESTINATION_ADDR,buff->SOURCE_ADDR,MAC_LEN);
+		memcpy(buff->SOURCE_ADDR,temp,MAC_LEN);
+		buff->pppoe_length=htons(1+16+4+2+1+1+2);//caculate by myself!
+		chap_packet->Code=2;
+		chap_packet->Length=htons(1+1+2+1+16+4);//caculate by myself!
+		struct CHAP_value md5_value;
+		memset(&md5_value,0,sizeof(md5_value));
+		md5_value.Value_size=16;
+		memcpy(md5_value.Value,md5,16);
+		memcpy(md5_value.Name,"aaaa",4);
+		memcpy(chap_packet->Data,&md5_value,sizeof(md5_value));
+		
+		struct sockaddr_ll dst_addr;
+		memset(&dst_addr,0,sizeof(dst_addr));
+		dst_addr.sll_family=AF_PACKET;
+		dst_addr.sll_ifindex=my_connection->my_ifindex;
+		dst_addr.sll_halen=MAC_LEN;
+		memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
+		//dst_addr's ready!
+		
+		int send_count=sendto(my_connection->session_sock,buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff->pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr));
+		if (send_count==-1) {
+			printf("errno is sending the response of CHAP challenge!\n%s\n",strerror(errno));
+			exit(1);
+		}
+	}
+}
+		
+		
+	
+	
+	
+	
+	
 	
 void session (struct Connection_info *my_connection) {
 	unsigned char LCP_ID=send_CFG_REQ(my_connection);
@@ -150,9 +213,17 @@ void session (struct Connection_info *my_connection) {
 			if(buff.pppoe_session_id!=my_connection->pppoe_session_id) {
 				continue;
 			}
-			if(buff.Protocol_Field==htons(0xc021)) {
+			if(buff.Protocol_Field==htons(LCP)) {
 				LCP_handle(my_connection,&buff,LCP_ID);
 			}
+			if(buff.Protocol_Field==htons(CHAP)) {
+				if(CHAP_handle(my_connection,&buff)==1) {
+					//send_IPCP_REQ(my_connection);
+				}
+			}
+			/*if(buff.Protocol_Field==htons(IPCP)) {
+				IPCP_handle(my_connection);
+			}*/
 		}
 	}
 }
