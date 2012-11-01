@@ -48,6 +48,7 @@ unsigned char send_CFG_REQ (struct Connection_info *my_connection) {
 	m_num.Type=0x05;
 	m_num.Length=0x06;
 	m_num.Data=(int)(rand()/(float)RAND_MAX*1024);
+	my_connection->LCP_magic_number=m_num.Data;
 	// magic number's ready!
 	
 	mru.Type=0x01;
@@ -89,6 +90,35 @@ int LCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPoE
 		printf("we got a configure ACK!\n");
 		return 0;
 	}
+	if(lcp_packet->Code==0x09) {
+		lcp_packet->Code=0x0a;
+		unsigned char temp[MAC_LEN];
+		memcpy(temp,buff->SOURCE_ADDR,MAC_LEN);
+		memcpy(buff->SOURCE_ADDR,buff->DESTINATION_ADDR,MAC_LEN);
+		memcpy(buff->DESTINATION_ADDR,temp,MAC_LEN);
+		struct sockaddr_ll dst_addr;
+		memset(&dst_addr,0,sizeof(dst_addr));
+		dst_addr.sll_family=AF_PACKET;
+		dst_addr.sll_ifindex=my_connection->my_ifindex;
+		dst_addr.sll_halen=MAC_LEN;
+		memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
+		//dst_addr's ready!
+		buff->pppoe_length=htons(12);
+		lcp_packet->Length=htons(10);
+		struct magic_number mn;
+		mn.Type=5;
+		mn.Length=6;
+		mn.Data=my_connection->LCP_magic_number;
+		memcpy(lcp_packet->Data,&mn,mn.Length);
+		int sent_count=sendto(my_connection->session_sock,buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff->pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr));
+		if(sent_count==-1) {
+			printf("error in sending echo reply!\n%s\n",strerror(errno));
+			exit(1);
+		}
+	}
+
+		
+		
 	if(lcp_packet->Code==0x01) {
 		lcp_packet->Code=0x02;
 		struct ppp_frame_for_PPPoE cfg_req_ack;
@@ -175,8 +205,75 @@ int CHAP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPo
 	}
 }
 		
-		
+void send_IPCP_REQ (struct Connection_info *my_connection) {
+	struct ppp_frame_for_PPPoE buff;
+	memset(&buff,0,sizeof(buff));
+	memcpy(buff.DESTINATION_ADDR,my_connection->peer_mac,MAC_LEN);
+	memcpy(buff.SOURCE_ADDR,my_connection->my_mac,MAC_LEN);
+	buff.ETHER_TYPE=htons(ETHER_TYPE_PPP_SESSION);
+	buff.pppoe_type=1;
+	buff.pppoe_ver=1;
+	buff.pppoe_code=0;
+	buff.pppoe_session_id=my_connection->pppoe_session_id;
+	buff.pppoe_length=htons(12); //caculate by myself
+	buff.Protocol_Field=htons(IPCP);
+	struct LCP_packet ipcp_packet;
+	memset(&ipcp_packet,0,sizeof(ipcp_packet));
+	ipcp_packet.Code=1;
+	ipcp_packet.Identifier=0;
+	ipcp_packet.Length=htons(10);
+	struct IPCP_ip_address ip_address;
+	memset(&ip_address,0,sizeof(ip_address));
+	ip_address.type=3;
+	ip_address.length=6;
+	memcpy(ipcp_packet.Data,&ip_address,sizeof(ip_address));
+	memcpy(buff.Information,&ipcp_packet,ntohs(ipcp_packet.Length));
+	//buff's ready!
+	struct sockaddr_ll dst_addr;
+	memset(&dst_addr,0,sizeof(dst_addr));
+	dst_addr.sll_family=AF_PACKET;
+	dst_addr.sll_ifindex=my_connection->my_ifindex;
+	dst_addr.sll_halen=MAC_LEN;
+	memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
+	//dst_addr's ready!
+	int send_count=sendto(my_connection->session_sock,&buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff.pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr));
+	if (send_count==-1) {
+		printf("error in sending IPCP_CFG_REQ!\n%s\n",strerror(errno));
+		exit(1);
+	}
+}
+
 	
+int IPCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPoE *buff) {
+	struct LCP_packet *ipcp_packet=(struct LCP_packet *)buff->Information;
+	if(ipcp_packet->Code==1 || ipcp_packet->Code==3) {
+		if(ipcp_packet->Code==1) ipcp_packet->Code=2;
+		if(ipcp_packet->Code==3) {
+			ipcp_packet->Code=1;
+			ipcp_packet->Identifier++;
+		}
+		unsigned char temp[MAC_LEN];
+		memcpy(temp,buff->SOURCE_ADDR,MAC_LEN);
+		memcpy(buff->SOURCE_ADDR,buff->DESTINATION_ADDR,MAC_LEN);
+		memcpy(buff->DESTINATION_ADDR,temp,MAC_LEN);
+		struct sockaddr_ll dst_addr;
+		memset(&dst_addr,0,sizeof(dst_addr));
+		dst_addr.sll_family=AF_PACKET;
+		dst_addr.sll_ifindex=my_connection->my_ifindex;
+		dst_addr.sll_halen=MAC_LEN;
+		memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
+		//dst_addr's ready!
+		int send_count=sendto(my_connection->session_sock,buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff->pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr));		
+		if (send_count==-1) {
+		printf("error in sending IPCP_CFG_ACK or IPCP_CFG_REQ!\n%s\n",strerror(errno));
+		exit(1);
+		}
+	}
+	if(ipcp_packet->Code==2) {
+		printf("we get a IPCP_CFG_ACK!\n");
+		return 1;
+	}
+}
 	
 	
 	
@@ -185,7 +282,7 @@ int CHAP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPo
 void session (struct Connection_info *my_connection) {
 	unsigned char LCP_ID=send_CFG_REQ(my_connection);
 	struct timeval tv;
-	tv.tv_sec=3;
+	tv.tv_sec=100;
 	tv.tv_usec=0;
 	fd_set readable;
 	FD_ZERO(&readable);
@@ -218,12 +315,12 @@ void session (struct Connection_info *my_connection) {
 			}
 			if(buff.Protocol_Field==htons(CHAP)) {
 				if(CHAP_handle(my_connection,&buff)==1) {
-					//send_IPCP_REQ(my_connection);
+					send_IPCP_REQ(my_connection);
 				}
 			}
-			/*if(buff.Protocol_Field==htons(IPCP)) {
-				IPCP_handle(my_connection);
-			}*/
+			if(buff.Protocol_Field==htons(IPCP)) {
+				IPCP_handle(my_connection,&buff);
+			}
 		}
 	}
 }

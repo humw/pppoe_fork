@@ -36,6 +36,7 @@
 #define CODE_OF_PPP_SESSION 0x00
 #define LCP 0xc021
 #define CHAP 0xc223
+#define IPCP 0x8021
 
 struct PADX_header {
 	char eth_dst_mac[MAC_LEN];
@@ -57,6 +58,7 @@ struct Connection_info {
 	int my_ifindex;
 	unsigned short int pppoe_session_id;
 	int session_sock;
+	unsigned int LCP_magic_number;
 };
 
 struct PPPOE_TAG {
@@ -101,5 +103,10 @@ struct CHAP_value {
 	unsigned char Value_size;
 	unsigned char Value[16];
 	unsigned char Name[4];
-}
+};
 
+struct IPCP_ip_address {
+	unsigned char type;
+	unsigned char length;
+	unsigned char data[4];
+};
