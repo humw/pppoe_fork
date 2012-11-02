@@ -47,8 +47,8 @@ unsigned char send_CFG_REQ (struct Connection_info *my_connection) {
 	
 	m_num.Type=0x05;
 	m_num.Length=0x06;
-	m_num.Data=(int)(rand()/(float)RAND_MAX*1024);
-	my_connection->LCP_magic_number=m_num.Data;
+	m_num.Data=0;//(int)(rand()/(float)RAND_MAX*1024);
+	my_connection->LCP_magic_number=htons(m_num.Data); //modify!
 	// magic number's ready!
 	
 	mru.Type=0x01;
@@ -103,13 +103,9 @@ int LCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPoE
 		dst_addr.sll_halen=MAC_LEN;
 		memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
 		//dst_addr's ready!
-		buff->pppoe_length=htons(12);
-		lcp_packet->Length=htons(10);
-		struct magic_number mn;
-		mn.Type=5;
-		mn.Length=6;
-		mn.Data=my_connection->LCP_magic_number;
-		memcpy(lcp_packet->Data,&mn,mn.Length);
+		buff->pppoe_length=htons(10);
+		lcp_packet->Length=htons(8);
+		memcpy(lcp_packet->Data,&my_connection->LCP_magic_number,4);
 		int sent_count=sendto(my_connection->session_sock,buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff->pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr));
 		if(sent_count==-1) {
 			printf("error in sending echo reply!\n%s\n",strerror(errno));
@@ -281,14 +277,14 @@ int IPCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPo
 	
 void session (struct Connection_info *my_connection) {
 	unsigned char LCP_ID=send_CFG_REQ(my_connection);
-	struct timeval tv;
-	tv.tv_sec=100;
-	tv.tv_usec=0;
 	fd_set readable;
 	FD_ZERO(&readable);
 	FD_SET(my_connection->session_sock,&readable);
 	int count;
 	for(;;) {
+		struct timeval tv;
+		tv.tv_sec=100;
+		tv.tv_usec=0;
 		count=select(my_connection->session_sock+1,&readable,NULL,NULL,&tv);
 		if(count==-1) {
 			printf("error in selecting!\n%s\n",strerror(errno));
