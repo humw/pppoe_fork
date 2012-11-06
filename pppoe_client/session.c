@@ -40,7 +40,7 @@ unsigned char send_CFG_REQ (struct Connection_info *my_connection) {
 	struct sockaddr_ll dst_addr;
 	memset(&dst_addr,0,sizeof(dst_addr));
 	dst_addr.sll_family=AF_PACKET;
-	dst_addr.sll_ifindex=my_connection->my_ifindex;
+	dst_addr.sll_ifindex=my_connection->ifindex;
 	dst_addr.sll_halen=MAC_LEN;
 	memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
 	//dst_addr's ready!
@@ -87,7 +87,7 @@ unsigned char send_CFG_REQ (struct Connection_info *my_connection) {
 int LCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPoE *buff,unsigned char LCP_ID) {
 	struct LCP_packet *lcp_packet=(struct LCP_packet *)buff->Information;
 	if(lcp_packet->Code==0x02 && lcp_packet->Identifier==LCP_ID) {
-		printf("we got a configure ACK!\n");
+		//printf("we got a configure ACK!\n");
 		return 0;
 	}
 	if(lcp_packet->Code==0x09) {
@@ -99,7 +99,7 @@ int LCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPoE
 		struct sockaddr_ll dst_addr;
 		memset(&dst_addr,0,sizeof(dst_addr));
 		dst_addr.sll_family=AF_PACKET;
-		dst_addr.sll_ifindex=my_connection->my_ifindex;
+		dst_addr.sll_ifindex=my_connection->ifindex;
 		dst_addr.sll_halen=MAC_LEN;
 		memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
 		//dst_addr's ready!
@@ -121,7 +121,7 @@ int LCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPoE
 		struct sockaddr_ll dst_addr;
 		memset(&dst_addr,0,sizeof(dst_addr));
 		dst_addr.sll_family=AF_PACKET;
-		dst_addr.sll_ifindex=my_connection->my_ifindex;
+		dst_addr.sll_ifindex=my_connection->ifindex;
 		dst_addr.sll_halen=MAC_LEN;
 		memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
 		//dst_addr's ready!
@@ -149,7 +149,7 @@ int LCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPoE
 int CHAP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPoE *buff) {
 	struct LCP_packet *chap_packet=(struct LCP_packet *)buff->Information;
 	if(chap_packet->Code==3) {
-		printf("CHAP succeed!\n");
+		//printf("CHAP succeed!\n");
 		return 1;
 	}
 	if(chap_packet->Code==4) {
@@ -188,7 +188,7 @@ int CHAP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPo
 		struct sockaddr_ll dst_addr;
 		memset(&dst_addr,0,sizeof(dst_addr));
 		dst_addr.sll_family=AF_PACKET;
-		dst_addr.sll_ifindex=my_connection->my_ifindex;
+		dst_addr.sll_ifindex=my_connection->ifindex;
 		dst_addr.sll_halen=MAC_LEN;
 		memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
 		//dst_addr's ready!
@@ -228,7 +228,7 @@ void send_IPCP_REQ (struct Connection_info *my_connection) {
 	struct sockaddr_ll dst_addr;
 	memset(&dst_addr,0,sizeof(dst_addr));
 	dst_addr.sll_family=AF_PACKET;
-	dst_addr.sll_ifindex=my_connection->my_ifindex;
+	dst_addr.sll_ifindex=my_connection->ifindex;
 	dst_addr.sll_halen=MAC_LEN;
 	memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
 	//dst_addr's ready!
@@ -255,7 +255,7 @@ int IPCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPo
 		struct sockaddr_ll dst_addr;
 		memset(&dst_addr,0,sizeof(dst_addr));
 		dst_addr.sll_family=AF_PACKET;
-		dst_addr.sll_ifindex=my_connection->my_ifindex;
+		dst_addr.sll_ifindex=my_connection->ifindex;
 		dst_addr.sll_halen=MAC_LEN;
 		memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
 		//dst_addr's ready!
@@ -264,9 +264,10 @@ int IPCP_handle (struct Connection_info *my_connection,struct ppp_frame_for_PPPo
 		printf("error in sending IPCP_CFG_ACK or IPCP_CFG_REQ!\n%s\n",strerror(errno));
 		exit(1);
 		}
+		return 1;
 	}
 	if(ipcp_packet->Code==2) {
-		printf("we get a IPCP_CFG_ACK!\n");
+		//printf("we get a IPCP_CFG_ACK!\n");
 		return 1;
 	}
 }

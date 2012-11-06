@@ -53,10 +53,10 @@ struct PADX_header {
 struct Connection_info {
 	char my_mac[6];
 	char peer_mac[6];
-	char *my_NIC;
+	int ifindex;
 	unsigned short int host_uniq;
-	int my_ifindex;
 	unsigned short int pppoe_session_id;
+	int discovery_sock;
 	int session_sock;
 	unsigned int LCP_magic_number;
 };

@@ -1,15 +1,14 @@
 #include "discovery.h"
 ;
 
-int sendPADI (int sock,struct Connection_info *my_connection) {
-	my_connection->my_ifindex=get_ifindex(sock,my_connection->my_NIC);
+int sendPADI (struct Connection_info *my_connection) {
 	char dst_mac[MAC_LEN];
 	memset(dst_mac,0xff,MAC_LEN);
 	//dst_mac is a broadcast
 	struct sockaddr_ll dst_addr;
 	memset(&dst_addr,0,sizeof(dst_addr));
 	dst_addr.sll_family=AF_PACKET;
-	dst_addr.sll_ifindex=my_connection->my_ifindex;
+	dst_addr.sll_ifindex=my_connection->ifindex;
 	dst_addr.sll_halen=MAC_LEN;
 	memcpy(dst_addr.sll_addr,dst_mac,MAC_LEN);
 	//dst_addr's ready!
@@ -39,7 +38,7 @@ int sendPADI (int sock,struct Connection_info *my_connection) {
 	memcpy(buff.payload,&tag1,sizeof(tag1.TAG_TYPE)+sizeof(tag1.TAG_LENGTH));
 	memcpy(buff.payload+sizeof(tag1.TAG_TYPE)+sizeof(tag1.TAG_LENGTH),&tag2,sizeof(tag2.TAG_TYPE)+sizeof(tag2.TAG_LENGTH)+ntohs(tag2.TAG_LENGTH));
 	//buff's ready!
-	if (sendto(sock,&buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff.pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr))) {
+	if (sendto(my_connection->discovery_sock,&buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff.pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr))) {
 		return 0;
 	}
 	else {
@@ -48,7 +47,8 @@ int sendPADI (int sock,struct Connection_info *my_connection) {
 	}
 }
 
-int get_ifindex(int sock,char *device_name) {
+int get_ifindex(char *device_name) {
+	int sock=socket(AF_PACKET,SOCK_RAW,htons(ETHER_TYPE_DISCOVERY));
 	struct ifreq ifr;
 	memset(&ifr,0,sizeof(ifr));
 	strncpy (ifr.ifr_name,device_name, sizeof(ifr.ifr_name) - 1);
@@ -57,15 +57,16 @@ int get_ifindex(int sock,char *device_name) {
 		printf("%s\n",strerror(errno));
 		exit(1);
 	}
+	close(sock);
 	return ifr.ifr_ifindex;
 }
 
-int recv_PADO (int sock,struct Connection_info *my_connection) {
+int recv_PADO (struct Connection_info *my_connection) {
 	//printf("receiving...\n");
 	struct PADX_header buff;
 	memset(&buff,0,sizeof(buff));
 	ssize_t count;
-	while (count=recv(sock,&buff,sizeof(buff),0)) {
+	while (count=recv(my_connection->discovery_sock,&buff,sizeof(buff),0)) {
 	//	printf("count is %i\n",count);
 		if (count >0) {
 			if (parse_PADO(&buff,my_connection)) {
@@ -115,7 +116,8 @@ int parse_PADO (struct PADX_header *PADO,struct Connection_info *my_connection) 
 	return 0;
 }
 
-int set_promisc (int sock,char *device_name) {
+int set_promisc (char *device_name) {
+	int sock=socket(AF_PACKET,SOCK_RAW,htons(ETHER_TYPE_DISCOVERY));
 	struct ifreq ifr;
 	memset(&ifr,0,sizeof(ifr));
 	strncpy (ifr.ifr_name,device_name, sizeof(ifr.ifr_name) - 1);
@@ -123,14 +125,15 @@ int set_promisc (int sock,char *device_name) {
 	ioctl(sock,SIOCGIFFLAGS,&ifr);
 	ifr.ifr_flags |= IFF_PROMISC;
 	ioctl(sock,SIOCSIFFLAGS,&ifr);
+	close(sock);
 	return 0;
 }
 
-int sendPADR (int sock,struct Connection_info *my_connection) {
+int sendPADR (struct Connection_info *my_connection) {
 	struct sockaddr_ll dst_addr;
 	memset(&dst_addr,0,sizeof(dst_addr));
 	dst_addr.sll_family=AF_PACKET;
-	dst_addr.sll_ifindex=my_connection->my_ifindex;
+	dst_addr.sll_ifindex=my_connection->ifindex;
 	dst_addr.sll_halen=MAC_LEN;
 	memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
 	//dst_addr's ready!
@@ -158,7 +161,7 @@ int sendPADR (int sock,struct Connection_info *my_connection) {
 	buff.pppoe_length=htons(sizeof(tag1.TAG_LENGTH)+sizeof(tag1.TAG_TYPE)+ntohs(tag2.TAG_LENGTH)+sizeof(tag2.TAG_TYPE)+sizeof(tag2.TAG_LENGTH));
 	memcpy(buff.payload,&tag1,sizeof(tag1.TAG_TYPE)+sizeof(tag1.TAG_LENGTH));
 	memcpy(buff.payload+sizeof(tag1.TAG_TYPE)+sizeof(tag1.TAG_LENGTH),&tag2,sizeof(tag2.TAG_TYPE)+sizeof(tag2.TAG_LENGTH)+ntohs(tag2.TAG_LENGTH));
-	if (sendto(sock,&buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff.pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr))) {
+	if (sendto(my_connection->discovery_sock,&buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff.pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr))) {
 		return 0;
 	}
 	else {
@@ -167,11 +170,11 @@ int sendPADR (int sock,struct Connection_info *my_connection) {
 	}
 }
 
-int recv_PADS (int sock,struct Connection_info *my_connection) {
+int recv_PADS (struct Connection_info *my_connection) {
 	struct PADX_header buff;
 	memset(&buff,0,sizeof(buff));
 	ssize_t count;
-	while (count=recv(sock,&buff,sizeof(buff),0)) {
+	while (count=recv(my_connection->discovery_sock,&buff,sizeof(buff),0)) {
 		//printf("count is %i\n",count);
 		if (count >0) {
 			if (parse_PADS(&buff,my_connection)) {

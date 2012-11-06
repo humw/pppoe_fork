@@ -1,2 +1,3 @@
-pppoe_fork: discovery.c discovery.h pppoe_client.c session.c md5.h md5c.c
-	gcc discovery.c pppoe_client.c session.c md5c.c -o pppoe_fork
+pppoe_multiple: discovery.c discovery.h pppoe_multiple.c session.c md5c.c md5.h
+	gcc discovery.c pppoe_multiple.c session.c md5c.c -o pppoe_multiple
+	
