@@ -32,6 +32,7 @@
 #define Service_Name 0x0101
 #define Host_Uniq 0x0103
 #define CODE_OF_PADI 0x09
+#define CODE_OF_PADO 0x07
 #define CODE_OF_PADR 0x19
 #define CODE_OF_PADS 0x65
 #define CODE_OF_PPP_SESSION 0x00
@@ -54,7 +55,7 @@ struct pppoe_packet {
 	char pppoe_type:4;
 	char pppoe_ver:4;
 	char pppoe_code;
-	unsigned short int pppoe_session_id;
+	unsigned short int pppoe_session_id;  //network order
 	unsigned short int pppoe_length; //the length of pppoe payload
 	char payload[MTU-PPPOE_HEADER_LEN];
 };
@@ -66,10 +67,8 @@ struct Connection_info {
 	int discovery_succeed;
 	int dial_in_complete;
 	unsigned short int host_uniq; //16bit by design,no limit in RFC,in host order
-	unsigned short int pppoe_session_id;
-	int discovery_sock;
-	int session_sock;
-	unsigned int LCP_magic_number;
+	unsigned short int pppoe_session_id; //network order
+	unsigned int LCP_magic_number; //network order
 };
 
 struct PPPOE_TAG {

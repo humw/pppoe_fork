@@ -94,7 +94,7 @@ int recv_PADO (struct Connection_info *my_connection) {
 }
 			
 int parse_PADO (struct pppoe_packet *PADO,struct Connection_info *my_connection) {
-	if (memcmp(PADO->eth_dst_mac,my_connection->my_mac,MAC_LEN) ==0) {
+	if (memcmp(PADO->eth_dst_mac,my_connection->my_mac,MAC_LEN) ==0 && PADO->pppoe_code==CODE_OF_PADO) {
 	int i;
 		for(i=0;i<ntohs(PADO->pppoe_length);) {
 			struct PPPOE_TAG *tag=(struct PPPOE_TAG *)(PADO->payload+i);
@@ -135,13 +135,6 @@ int set_promisc (char *device_name) {
 }
 
 int sendPADR (struct Connection_info *my_connection) {
-	struct sockaddr_ll dst_addr;
-	memset(&dst_addr,0,sizeof(dst_addr));
-	dst_addr.sll_family=AF_PACKET;
-	dst_addr.sll_ifindex=my_connection->ifindex;
-	dst_addr.sll_halen=MAC_LEN;
-	memcpy(dst_addr.sll_addr,my_connection->peer_mac,MAC_LEN);
-	//dst_addr's ready!
 	struct PPPOE_TAG tag1;
 	memset(&tag1,0,sizeof(tag1));
 	tag1.TAG_TYPE=htons(Service_Name);
@@ -154,7 +147,7 @@ int sendPADR (struct Connection_info *my_connection) {
 	memcpy(&tag2.TAG_VALUE,&host_uniq_n,sizeof(host_uniq_n));
 	
 	//TAGs are ready!!
-	struct PADX_header buff;
+	struct pppoe_packet buff;
 	memset(&buff,0,sizeof(buff));
 	memcpy(buff.eth_dst_mac,my_connection->peer_mac,MAC_LEN);
 	memcpy(buff.eth_src_mac,my_connection->my_mac,MAC_LEN);
@@ -166,45 +159,78 @@ int sendPADR (struct Connection_info *my_connection) {
 	buff.pppoe_length=htons(sizeof(tag1.TAG_LENGTH)+sizeof(tag1.TAG_TYPE)+ntohs(tag2.TAG_LENGTH)+sizeof(tag2.TAG_TYPE)+sizeof(tag2.TAG_LENGTH));
 	memcpy(buff.payload,&tag1,sizeof(tag1.TAG_TYPE)+sizeof(tag1.TAG_LENGTH));
 	memcpy(buff.payload+sizeof(tag1.TAG_TYPE)+sizeof(tag1.TAG_LENGTH),&tag2,sizeof(tag2.TAG_TYPE)+sizeof(tag2.TAG_LENGTH)+ntohs(tag2.TAG_LENGTH));
-	if (sendto(my_connection->discovery_sock,&buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff.pppoe_length),0,(const struct sockaddr *)&dst_addr,sizeof(dst_addr))) {
+	if (send(my_connection->discovery_sock,&buff,ETH_HEARER_LEN_WITHOUT_CRC+PPPOE_HEADER_LEN+ntohs(buff.pppoe_length),0,)) {
 		return 0;
 	}
 	else {
-		//printf("%s\n",strerror(errno));
-		exit;
+		printf("error in sending PADR of client %i\n",my_connection->index);
+		return 1;
 	}
 }
 
 int recv_PADS (struct Connection_info *my_connection) {
-	struct PADX_header buff;
-	memset(&buff,0,sizeof(buff));
-	ssize_t count;
-	while (count=recv(my_connection->discovery_sock,&buff,sizeof(buff),0)) {
-		//printf("count is %i\n",count);
-		if (count >0) {
-			if (parse_PADS(&buff,my_connection)) {
-				//printf("got PADS!\n");
-			//	printf("the session id is %i\n",ntohs(buff.pppoe_session_id));
-				memcpy(&my_connection->pppoe_session_id,&buff.pppoe_session_id,sizeof(buff.pppoe_session_id));
-				return 0;
+	fd_set readable;
+	FD_ZERO(&readable);
+	FD_SET(discovery_socket,&readable);
+	struct timeval tv;
+	memset(&tv,0,sizeof(tv));
+	tv.tv_sec=TIME_OUT_DISCOVERY;
+	int select_count;
+	while(select_count=select(discovery_socket+1,&readable,NULL,NULL,&tv)) {
+		if (select_count==0) {
+			printf("time out in receiving the PADS of client %i\n",my_connection->index);
+			return 1;
+			}
+		if (select_count==-1) {
+			printf("error in receiving the PADS of client %i\n",my_connection->index);
+			return 1;
+			}
+		if (select_count==1) {
+			struct pppoe_packet buff;
+			memset(&buff,0,sizeof(buff));
+			ssize_t count;
+			count=recv(my_connection->discovery_sock,&buff,sizeof(buff),0)
+			if (count <=0) {
+				printf("error in receiving the PADS of client %i\n",my_connection->index);
+				return 1;
 			}
 			else {
-		//		printf("got a packet which is not expected\n");
-				continue;
+				if (parse_PADS(&buff,my_connection)) {
+				//got PADS
+				memcpy(&my_connection->pppoe_session_id,&buff.pppoe_session_id,sizeof(buff.pppoe_session_id));
+				my_connection->discovery_succeed=1;
+				return 0;
+				}
+				else {
+					//got a packet which is not expected
+					continue;
+				}
 			}
-		}
-		else {
-			//printf("recv_PADS failed!\t%s\n",strerror(errno));
-			exit(2);
 		}
 	}
 }
 
 
-int parse_PADS (struct PADX_header *PADS,struct Connection_info *my_connection) {
-	//printf("start to parse PADS\n");
-	if(PADS->pppoe_code==CODE_OF_PADS) {
-		return 1;
+int parse_PADS (struct pppoe_packet *PADS,struct Connection_info *my_connection) {
+	if(memcmp(PADO->eth_dst_mac,my_connection->my_mac,MAC_LEN) ==0 && PADS->pppoe_code==CODE_OF_PADS) {
+		int i;
+		for(i=0;i<ntohs(PADS->pppoe_length);) {
+			struct PPPOE_TAG *tag=(struct PPPOE_TAG *)(PADS->payload+i);
+			if (tag->TAG_TYPE == htons(Host_Uniq)) {
+				unsigned short int host_uniq_in_packet;
+				memcpy(&host_uniq_in_packet,tag->TAG_VALUE,ntohs(tag->TAG_LENGTH));
+				if(my_connection->host_uniq == ntohs(host_uniq_in_packet)) {
+					return 1;
+				}
+				else {
+					return 0;
+				}
+			}
+			else {
+				i+=(sizeof(tag->TAG_TYPE)+sizeof(tag->TAG_LENGTH)+ntohs(tag->TAG_LENGTH));
+			}
+		}
+		
 	}
 	return 0;
 }
